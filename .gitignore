@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# WoofWatch specific
+logs/
+snapshots/
+models/*.onnx
+models/*.pt
+*.jpg
+*.png
+*.mp4
+*.avi

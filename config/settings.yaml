@@ -1,0 +1,64 @@
+# WoofWatch Configuration
+
+# Camera settings
+camera:
+  resolution:
+    width: 640
+    height: 480
+  fps: 30
+  format: "RGB888"
+  # Camera Module 3 specific settings
+  autofocus: true
+  awb_mode: "auto"  # Auto white balance
+
+# Detection settings
+detection:
+  model_path: "models/yolov8n.onnx"
+  confidence_threshold: 0.5
+  iou_threshold: 0.45
+  # Class ID for 'dog' in COCO dataset
+  target_classes: [16]  # 16 = dog
+  max_detections: 10
+  input_size: [640, 640]  # Model input size
+
+# Processing settings
+processing:
+  max_queue_size: 5
+  frame_skip: 0  # Process every frame (0 = no skip)
+  async_mode: true
+
+# Output settings
+output:
+  snapshots_dir: "snapshots"
+  save_snapshots: true
+  snapshot_format: "jpg"
+  snapshot_quality: 95
+  draw_boxes: true
+  box_color: [0, 255, 0]  # Green (RGB)
+  box_thickness: 2
+  show_labels: true
+  show_confidence: true
+
+# Logging settings
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/woofwatch.log"
+  console: true
+
+# API settings (Phase 3)
+api:
+  host: "0.0.0.0"
+  port: 8000
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://192.168.1.*"  # Local network
+  websocket_max_connections: 10
+  stream_quality: 80  # JPEG quality for streaming
+
+# Performance settings
+performance:
+  # Use ONNX Runtime optimizations
+  onnx_providers: ["CPUExecutionProvider"]
+  num_threads: 4  # Adjust based on Raspberry Pi 5 cores
+  enable_profiling: false
