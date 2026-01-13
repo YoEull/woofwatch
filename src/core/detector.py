@@ -81,6 +81,9 @@ class DogDetector:
         self.target_classes = set(self.config.detection.target_classes)
         self.input_size = self.config.get_model_input_size()
 
+        # If target_classes is empty → detect all classes
+        self.detect_all_classes = (not self.target_classes or len(self.target_classes) == 0)
+
         self.session: Optional[ort.InferenceSession] = None
         self.input_name: Optional[str] = None
         self.output_names: Optional[List[str]] = None
@@ -189,11 +192,12 @@ class DogDetector:
         class_ids = class_ids[mask]
         confidences = confidences[mask]
 
-        # Filter by target classes (dogs)
-        target_mask = np.isin(class_ids, list(self.target_classes))
-        boxes = boxes[target_mask]
-        class_ids = class_ids[target_mask]
-        confidences = confidences[target_mask]
+        # Filter by target classes (only if specified)
+        if not self.detect_all_classes:
+            target_mask = np.isin(class_ids, list(self.target_classes))
+            boxes = boxes[target_mask]
+            class_ids = class_ids[target_mask]
+            confidences = confidences[target_mask]
 
         if len(boxes) == 0:
             return []

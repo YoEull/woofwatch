@@ -30,8 +30,12 @@ The codebase follows a layered architecture:
    - Will wrap core modules with REST and WebSocket endpoints
 
 4. **Scripts** (`scripts/`): Standalone executables
-   - `cli_runner.py`: Test script for camera and detection
+   - `cli_runner.py`: Full-featured detection system demo
    - `download_model.py`: Model download and ONNX export utility
+   - `test_camera_only.py`: Camera hardware validation (no detection)
+   - `test_detection.py`: Complete detection pipeline testing with benchmarks
+   - `benchmark_detector.py`: Multi-configuration performance testing
+   - `test_detector_all_yolo.py`: All 80 COCO classes detection test
 
 ### Key Design Patterns
 
@@ -77,13 +81,30 @@ cp .env.example .env
 ### Running and Testing
 
 ```bash
-# Run CLI test script (requires Raspberry Pi with camera)
-python scripts/cli_runner.py
+# Integration Testing Scripts (require Raspberry Pi + Camera Module 3)
 
-# Run with custom duration and headless mode
+# 1. Test camera hardware only (no detection)
+python scripts/test_camera_only.py --duration 30
+
+# 2. Test complete detection pipeline (dogs only)
+python scripts/test_detection.py --duration 60
+
+# 3. Test with frame-skip optimization
+python scripts/test_detection.py --frame-skip 2 --duration 60
+
+# 4. Benchmark multiple configurations
+python scripts/benchmark_detector.py --duration 30
+
+# 5. Test all 80 COCO classes (discovery mode)
+python scripts/test_detector_all_yolo.py --duration 60
+
+# 6. Test specific classes only
+python scripts/test_detector_all_yolo.py --classes person,dog,cat --duration 60
+
+# 7. Full-featured demo
 python scripts/cli_runner.py --duration 120 --no-display
 
-# Run unit tests
+# Unit Testing
 pytest tests/
 
 # Run tests with coverage
@@ -126,11 +147,14 @@ The `CameraManager` class uses Picamera2 API (not legacy picamera):
 The `DogDetector` class handles ONNX Runtime inference:
 - **Model input**: (1, 3, 640, 640) - NCHW format, float32, normalized [0, 1]
 - **Model output**: (1, 84, 8400) - 84 = 4 bbox coords + 80 class scores
-- **Target class**: 16 (dog in COCO dataset)
+- **Target classes**: Configurable via `config.detection.target_classes`
+- **All-class mode**: Empty `target_classes` list enables detection of all 80 COCO classes
 - **Preprocessing**: Resize → Normalize → HWC to CHW → Add batch dim
-- **Postprocessing**: Confidence filter → Class filter → NMS → Scale coordinates
+- **Postprocessing**: Confidence filter → Class filter (optional) → NMS → Scale coordinates
 
-**COCO Class Index for Dogs:** 16 (hardcoded in settings.yaml)
+**COCO Classes:**
+- Dog: class ID 16
+- All 80 classes: person, bicycle, car, motorcycle, airplane, bus, train, truck, boat, traffic light, fire hydrant, stop sign, parking meter, bench, bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe, backpack, umbrella, handbag, tie, suitcase, frisbee, skis, snowboard, sports ball, kite, baseball bat, baseball glove, skateboard, surfboard, tennis racket, bottle, wine glass, cup, fork, knife, spoon, bowl, banana, apple, sandwich, orange, broccoli, carrot, hot dog, pizza, donut, cake, chair, couch, potted plant, bed, dining table, toilet, tv, laptop, mouse, remote, keyboard, cell phone, microwave, oven, toaster, sink, refrigerator, book, clock, vase, scissors, teddy bear, hair drier, toothbrush
 
 ### Configuration Schema
 
@@ -187,9 +211,16 @@ Annotated frame with bounding boxes
 - No API dependencies
 
 ### Phase 2: CLI Testing (✅ Complete)
-- Implemented: `scripts/cli_runner.py`
+- Implemented: `scripts/cli_runner.py`, `scripts/test_camera_only.py`, `scripts/test_detection.py`, `scripts/benchmark_detector.py`
 - Validates end-to-end pipeline on Raspberry Pi
 - Provides FPS metrics and saves snapshots
+- Comprehensive testing suite for camera, detection, and performance optimization
+
+**Phase 2.1: All-Class Detection (✅ Complete - January 2026)**
+- Extended `DogDetector` to support all 80 COCO classes (not just dogs)
+- Implemented: `scripts/test_detector_all_yolo.py`
+- Features: Category-based color coding, class filtering, per-class statistics
+- Use case: Discovery mode to explore all YOLOv8n capabilities
 
 ### Phase 3: FastAPI Backend (🚧 Not Started)
 **Implementation guidance:**
@@ -293,29 +324,76 @@ python scripts/cli_runner.py --no-display
 
 ## Testing Strategy
 
-### Unit Tests
+### Unit Tests (`tests/core/`)
 - Test each core module independently
 - Mock hardware dependencies (Picamera2, ONNX Runtime)
 - Focus on logic, not integration
+- Can run on any machine (no Raspberry Pi required)
 
-### Integration Tests
-- Test camera + detector pipeline
-- Requires actual Raspberry Pi hardware
-- Use `cli_runner.py` as integration test
+### Integration Tests (`scripts/test_*.py`)
+**Requires Raspberry Pi 5 + Camera Module 3**
+
+1. **Camera-Only Test** (`test_camera_only.py`):
+   - Validates Picamera2 hardware integration
+   - Measures FPS and frame capture performance
+   - No detection overhead
+   - Success criteria: FPS ≥ 25
+
+2. **Detection Test** (`test_detection.py`):
+   - Complete pipeline: camera + YOLOv8 detection
+   - Benchmark mode with inference timing
+   - Frame-skip support for optimization
+   - Success criteria: FPS ≥ 10, accurate detections
+
+3. **Benchmark Test** (`benchmark_detector.py`):
+   - Tests multiple resolutions (416x416, 640x480)
+   - Tests frame-skip values (0, 1, 2, 3)
+   - Generates performance comparison table
+   - Identifies optimal configuration
+
+4. **All-YOLO Test** (`test_detector_all_yolo.py`):
+   - Tests all 80 COCO classes
+   - Category-based color visualization
+   - Per-class statistics
+   - Class filtering/exclusion support
+   - Use case: Discovery mode, debugging, demonstrations
+
+### Test Workflow
+```bash
+# Recommended testing sequence:
+python scripts/download_model.py              # First time only
+python scripts/test_camera_only.py --duration 30
+python scripts/test_detection.py --duration 60
+python scripts/test_detection.py --frame-skip 2 --duration 60
+python scripts/benchmark_detector.py --duration 30
+python scripts/test_detector_all_yolo.py --duration 60
+```
 
 ### Test Fixtures
 - Place test images in `tests/fixtures/`
 - Use sample ONNX model outputs for detector tests
 - Mock configuration with `Config` objects
+- Test snapshots saved to `test_snapshots/`
 
 ## Future Enhancements
 
-Potential features for later phases:
+### Planned Features
+**Phase 2.2: Dog Identification (Arlo/Pops) - 🚧 In Planning**
+- 2-stage pipeline: General dog detection → Custom identification
+- Train custom YOLOv8n on 2 classes (Arlo, Pops)
+- Fallback to "Other" for unknown dogs
+- Target performance: 15-20 FPS
+- Files to create:
+  - `src/core/dog_identifier.py`: Identification pipeline module
+  - `scripts/prepare_arlo_pops_dataset.py`: Dataset preparation
+  - `scripts/train_arlo_pops_yolo.py`: Model training
+  - `scripts/test_dog_identification.py`: Real-time identification testing
+
+### Later Phases
 - Multi-object tracking with IDs (Phase 3+)
 - Alert system when dogs detected in restricted areas
 - Historical analytics and dashboards
 - Mobile app integration
-- Support for other animal classes
 - H.264 hardware encoding for streaming (Pi 5 has video encoder)
 - Database for detection history
 - Time-lapse video generation

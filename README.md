@@ -100,7 +100,47 @@ cp .env.example .env
 
 ### Phase 1 & 2: CLI Mode (Current)
 
-Run the CLI test script to validate camera and detection:
+#### Testing Scripts
+
+**1. Test Camera Only** (recommended first step):
+```bash
+# Test camera for 30 seconds
+python scripts/test_camera_only.py --duration 30
+
+# Test with custom resolution
+python scripts/test_camera_only.py --resolution 1280x720 --duration 30
+
+# Headless mode (no display)
+python scripts/test_camera_only.py --no-display --duration 30
+```
+
+**2. Test Detection** (camera + YOLOv8):
+```bash
+# Basic detection test (60 seconds)
+python scripts/test_detection.py --duration 60
+
+# With frame-skip for better FPS
+python scripts/test_detection.py --frame-skip 2 --duration 60
+
+# Benchmark mode with detailed metrics
+python scripts/test_detection.py --benchmark --duration 60
+
+# Lower confidence threshold (more detections)
+python scripts/test_detection.py --confidence 0.3 --duration 60
+```
+
+**3. Benchmark Performance** (compare configurations):
+```bash
+# Full benchmark (tests multiple configs)
+python scripts/benchmark_detector.py --duration 30
+
+# Custom resolutions and frame-skips
+python scripts/benchmark_detector.py --resolutions "640x480,416x416" --frame-skips "0,1,2"
+```
+
+#### Full System Demo
+
+Run the full detection system with CLI runner:
 
 ```bash
 # Run for 60 seconds with default settings
@@ -111,21 +151,19 @@ python scripts/cli_runner.py --duration 120 --save-interval 10
 
 # Run in headless mode (no display window)
 python scripts/cli_runner.py --no-display
-
-# Use custom configuration
-python scripts/cli_runner.py --config path/to/config.yaml
 ```
 
-**CLI Options:**
-- `--duration SECONDS`: Run duration (default: 60)
-- `--save-interval SECONDS`: Snapshot save interval (default: 5)
-- `--no-display`: Disable live preview (headless mode)
-- `--config PATH`: Custom configuration file
+**Recommended Testing Workflow:**
+1. `test_camera_only.py` - Validate camera works (~30s)
+2. `test_detection.py` - Validate detection works (~60s)
+3. `test_detection.py --frame-skip 2` - Test with optimization
+4. `benchmark_detector.py` - Find optimal configuration (~2-4 min)
+5. `cli_runner.py` - Run full system with best settings
 
-**Live Preview:**
-- Press `q` to quit early
-- Statistics displayed in terminal and on video
-- Snapshots saved when dogs are detected
+**Common Options:**
+- `--duration SECONDS`: Run duration
+- `--no-display`: Disable live preview (headless mode)
+- Press `q` to quit early (when display enabled)
 
 ### Phase 3: API Mode (Coming Soon)
 
@@ -214,11 +252,37 @@ pytest tests/core/test_camera.py
 
 ## Performance Tips
 
-- **Resolution**: Lower resolution (640x480) for better FPS
-- **Model**: YOLOv8-nano is fastest, use larger models for accuracy
-- **Frame skip**: Process every Nth frame to improve FPS
-- **Threads**: Adjust `performance.num_threads` based on CPU cores
-- **Confidence**: Higher threshold reduces false positives
+- **Resolution**: Lower resolution (640x480) for better FPS, 416x416 for maximum speed
+- **Model**: YOLOv8-nano is fastest (~10 FPS), use larger models for accuracy
+- **Frame skip**: Process every 2-3 frames to improve FPS (use `--frame-skip 2`)
+- **Threads**: Adjust `performance.num_threads` based on CPU cores (Pi 5 has 4 cores)
+- **Confidence**: Higher threshold reduces false positives (try 0.6-0.7)
+- **Expected Performance** on Raspberry Pi 5:
+  - 640x480 + YOLOv8n: ~10-15 FPS (no skip), ~20-25 FPS (skip=2)
+  - 416x416 + YOLOv8n: ~15-20 FPS (no skip), ~30+ FPS (skip=2)
+
+## Framework Choice: ONNX Runtime vs TensorFlow Lite
+
+WoofWatch uses **ONNX Runtime** for YOLOv8 inference, which is the optimal choice for Raspberry Pi 5:
+
+**Performance Comparison (2025 Benchmarks):**
+- **ONNX Runtime**: ~69ms inference time ✅ (Recommended)
+- **TensorFlow Lite**: ~316ms inference time (4.6x slower)
+- **PyTorch**: >500ms (too heavy for Pi)
+
+**Why ONNX Runtime?**
+- Native YOLOv8 export support (Ultralytics)
+- ARM64 CPU optimizations
+- Lightweight (~50MB vs >1GB for PyTorch)
+- Better performance than TFLite on YOLO models
+
+**Compatibility:**
+- ✅ Works with Picamera2 (all official Pi cameras: v1, v2, v3, HQ)
+- ✅ Supports Camera Module 3 autofocus
+- ✅ RGB888 format compatible with YOLOv8
+- ✅ No additional hardware required
+
+See the [Raspberry Pi camera integration guide](https://www.raspberrypi.com/news/using-the-picamera2-library-with-tensorflow-lite/) and [Jeff Geerling's benchmarks](https://www.jeffgeerling.com/blog/2024/testing-object-detection-yolo-mobilenet-etc-picamera2-on-pi-5/) for more details.
 
 ## License
 
